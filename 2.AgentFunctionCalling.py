@@ -1,29 +1,36 @@
-"""
-AGENT FLOWCHART (Mermaid Syntax)
----------------------------------
-flowchart TD
-    Start([User Input]) --> Init[Initialize AgentState with System & User Message]
-    Init --> Loop{Iteration < Max?}
-    
-    subgraph Reasoning_Loop [ReAct Loop]
-    Loop -- Yes --> Think[LLM processes messages]
-    Think --> Decision{Tool Call requested?}
-    
-    Decision -- Yes --> Act[Find Tool by Name]
-    Act --> Validate{Tool Found?}
-    Validate -- No --> Error[Return Error Message to LLM]
-    Validate -- Yes --> Execute[Invoke Python Function with tool_args]
-    Execute --> Observe[Add result as ToolMessage to History]
-    Observe --> Loop
-    end
-    
-    Decision -- No --> Final[Agent provides text response]
-    Loop -- No --> Timeout[Max iterations reached]
-    
-    Final --> End([Task Complete])
-    Timeout --> End
-    Error --> Loop
-"""
+# [ START: User Query ]
+#           |
+#           v
+# +-----------------------+
+# |  Initialize State     | <--- Sets System Prompt & History
+# +-----------------------+
+#           |
+#           v
+#    /---------------\
+#   |  REASONING      | <--- LLM: "What do I do next?"
+#    \---------------/
+#           |
+#           +-----------------------+
+#           |                       |
+#    [ Tool Call? ]          [ Final Answer? ]
+#           |                       |
+#           v                       v
+# +-----------------------+    +-----------------------+
+# |  ACTION (ACT)         |    |   OUTPUT TO USER      |
+# |  - Find Tool by Name  |    +-----------------------+
+# |  - Validate Tool      |               |
+# |  - Execute .invoke()  |               v
+# +-----------------------+           [ END ]
+#           |
+#           v
+# +-----------------------+
+# |  OBSERVATION          |
+# |  - Add Tool Result    |
+# |    to History         |
+# +-----------------------+
+#           |
+#           | (Repeat Loop)
+#           +-----------> [ Back to REASONING ]
 
 from dotenv import load_dotenv
 load_dotenv()
