@@ -1,3 +1,30 @@
+"""
+AGENT FLOWCHART (Mermaid Syntax)
+---------------------------------
+flowchart TD
+    Start([User Input]) --> Init[Initialize AgentState with System & User Message]
+    Init --> Loop{Iteration < Max?}
+    
+    subgraph Reasoning_Loop [ReAct Loop]
+    Loop -- Yes --> Think[LLM processes messages]
+    Think --> Decision{Tool Call requested?}
+    
+    Decision -- Yes --> Act[Find Tool by Name]
+    Act --> Validate{Tool Found?}
+    Validate -- No --> Error[Return Error Message to LLM]
+    Validate -- Yes --> Execute[Invoke Python Function with tool_args]
+    Execute --> Observe[Add result as ToolMessage to History]
+    Observe --> Loop
+    end
+    
+    Decision -- No --> Final[Agent provides text response]
+    Loop -- No --> Timeout[Max iterations reached]
+    
+    Final --> End([Task Complete])
+    Timeout --> End
+    Error --> Loop
+"""
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -190,34 +217,34 @@ class FunctionCallingAgent:
         """
         return """You are a job search assistant using function calling.
 
-Your task: Find ACTIVE AI engineer jobs (currently open for applications).
+                Your task: Find ACTIVE AI engineer jobs (currently open for applications).
 
-CRITICAL - Search Strategy for Fresh Jobs:
-1. ALWAYS include temporal keywords in searches:
-   - "hiring now", "open positions", "actively hiring"
-   - Add current month/year to queries (e.g., "January 2026")
-2. Use multiple searches with different date-focused queries
-3. Check search result snippets for indicators like:
-   - "Posted X days ago" (prefer < 7 days)
-   - "Apply now", "Currently hiring"
-   - Avoid: "Closed", "No longer accepting", "Expired"
+                CRITICAL - Search Strategy for Fresh Jobs:
+                1. ALWAYS include temporal keywords in searches:
+                    - "hiring now", "open positions", "actively hiring"
+                    - Add current month/year to queries (e.g., "January 2026")
+                2. Use multiple searches with different date-focused queries
+                3. Check search result snippets for indicators like:
+                    - "Posted X days ago" (prefer < 7 days)
+                    - "Apply now", "Currently hiring"
+                    - Avoid: "Closed", "No longer accepting", "Expired"
 
-Process:
-1. Search with recency-focused queries (e.g., "Agentic AI engineer LinkedIn hiring now January 2026")
-2. Verify from snippets that jobs appear ACTIVE (recently posted)
-3. Extract ONLY direct job posting URLs
-4. Filter out: company homepages, blog posts, old articles, archived listings
-5. Prioritize URLs from job boards that show posting dates
-6. Collect at least 3 valid, ACTIVE job URLs
+                Process:
+                1. Search with recency-focused queries (e.g., "Agentic AI engineer LinkedIn hiring now January 2026")
+                2. Verify from snippets that jobs appear ACTIVE (recently posted)
+                3. Extract ONLY direct job posting URLs
+                4. Filter out: company homepages, blog posts, old articles, archived listings
+                5. Prioritize URLs from job boards that show posting dates
+                6. Collect at least 3 valid, ACTIVE job URLs
 
-Valid job URL must contain: /jobs/, /careers/, /job/, /positions/, /apply/
+                Valid job URL must contain: /jobs/, /careers/, /job/, /positions/, /apply/
 
-Final output format (with posting date if visible):
-- https://url1.com (Posted: X days ago)
-- https://url2.com (Posted: X days ago)
-- https://url3.com
+                Final output format (with posting date if visible):
+                - https://url1.com (Posted: X days ago)
+                - https://url2.com (Posted: X days ago)
+                - https://url3.com
 
-Only include jobs that appear to be currently open. If uncertain, search again with more specific date filters."""
+                Only include jobs that appear to be currently open. If uncertain, search again with more specific date filters."""
     
     def _execute_tool_call(self, tool_call: Dict[str, Any]) -> str:
         """
@@ -235,7 +262,21 @@ Only include jobs that appear to be currently open. If uncertain, search again w
         tool_args = tool_call["args"]
         
         # Find matching tool
-        tool = next((t for t in self.tools if t.name == tool_name), None)
+        #tool = next((t for t in self.tools if t.name == tool_name), None)
+        
+        # Initialize the variable as None in case no match is found
+        tool = None 
+
+        # Start looping through your list of tool objects
+        for t in self.tools:
+            # Check if the tool's name matches the name the LLM requested
+            if t.name == tool_name:
+                # We found it! Assign it to our variable
+                tool = t
+                # Stop looking (exit the loop) because we found our match
+                break 
+
+        # If the loop finishes and 'tool' is still None, it means no match was found.
         
         if not tool:
             return f"Error: Tool '{tool_name}' not found"
