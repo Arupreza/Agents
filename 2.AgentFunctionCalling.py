@@ -2,129 +2,418 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
+import json
+from typing import List, Dict, Any, Literal
+from dataclasses import dataclass
+from enum import Enum
 
-from typing import TypedDict, Annotated, Sequence
+# LangChain imports - modular for easy swapping
 from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_tavily import TavilySearch
-from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage
-from langgraph.graph import StateGraph, END
-from langgraph.graph.message import add_messages
-from langgraph.prebuilt import ToolNode
+from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, AIMessage, ToolMessage
 
-# -----------------------------
-# State definition
-# -----------------------------
-class AgentState(TypedDict):
-    messages: Annotated[Sequence[BaseMessage], add_messages]
+# ============================================================================
+# CONFIGURATION: Switch models here
+# ============================================================================
 
-# -----------------------------
-# Tools
-# -----------------------------
-search_tool = TavilySearch(
-    max_results=5,
-    description="Search the web for job postings and career information"
-)
-tools = [search_tool]
+class ModelProvider(Enum):
+    """Supported model providers"""
+    OPENAI = "openai"
+    ANTHROPIC = "anthropic"
+    GOOGLE = "google"
+    # Add more as needed: COHERE, MISTRAL, etc.
 
-# -----------------------------
-# LLM with ReAct prompting
-# -----------------------------
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-llm_with_tools = llm.bind_tools(tools)
-
-# -----------------------------
-# ReAct System Prompt
-# -----------------------------
-REACT_SYSTEM_PROMPT = """You are a job search assistant.
-
-Task: Find AI engineer jobs using LangChain in the Bay Area.
-
-Instructions:
-1. Search for "AI engineer LangChain Bay Area jobs" using the tavily_search tool
-2. Extract ONLY the job posting URLs from search results
-3. Search multiple times with different queries if needed to find more postings
-4. When you have collected enough URLs, provide them in a clean bulleted list
-
-Output Format (STRICT):
-- https://url1.com
-- https://url2.com
-- https://url3.com
-
-Requirements:
-- Each URL must be a direct job posting link (contains /jobs/, /careers/, /job/, /positions/)
-- Exclude company homepages, blog posts, or articles
-- Minimum 3 job posting URLs
-- Use bullet points with "-" prefix
-- No extra text, explanations, or commentary in final output
-
-Begin searching!
-"""
-
-# -----------------------------
-# Agent node with ReAct reasoning
-# -----------------------------
-def agent(state: AgentState):
-    messages = state["messages"]
-    response = llm_with_tools.invoke(messages)
-    return {"messages": [response]}
-
-# -----------------------------
-# Conditional edge
-# -----------------------------
-def should_continue(state: AgentState):
-    last_message = state["messages"][-1]
-    # Check if agent wants to use tools
-    if not last_message.tool_calls:
-        return "end"
-    return "continue"
-
-# -----------------------------
-# Build ReAct graph
-# -----------------------------
-workflow = StateGraph(AgentState)
-
-# Add nodes
-workflow.add_node("agent", agent)
-workflow.add_node("tools", ToolNode(tools))
-
-# Add edges
-workflow.set_entry_point("agent")
-workflow.add_conditional_edges(
-    "agent",
-    should_continue,
-    {
-        "continue": "tools",
-        "end": END,
-    },
-)
-workflow.add_edge("tools", "agent")
-
-# Compile
-app = workflow.compile()
-
-# -----------------------------
-# Run
-# -----------------------------
-def main():
-    print("Starting ReAct Agent...\n")
-    print("=" * 60)
+def get_model(provider: ModelProvider, model_name: str = None):
+    """
+    Factory function to instantiate any LLM model.
     
-    result = app.invoke(
-        {
-            "messages": [
-                SystemMessage(content=REACT_SYSTEM_PROMPT),
-                HumanMessage(content="Find Agentic AI engineer jobs position available only on linkedin")
-            ]
-        },
-        {"recursion_limit": 15}
+    Why: Decouples model selection from agent logic. Change one line to switch providers.
+    
+    Args:
+        provider: Which company's model to use
+        model_name: Specific model (None = use default)
+    
+    Returns:
+        Configured LLM instance with tool binding support
+    """
+    if provider == ModelProvider.OPENAI:
+        model = model_name or "gpt-4o-mini"
+        return ChatOpenAI(model=model, temperature=0)
+    
+    elif provider == ModelProvider.ANTHROPIC:
+        model = model_name or "claude-3-5-sonnet-20241022"
+        return ChatAnthropic(model=model, temperature=0)
+    
+    elif provider == ModelProvider.GOOGLE:
+        model = model_name or "gemini-1.5-pro"
+        return ChatGoogleGenerativeAI(
+            model=model,
+            temperature=0,
+            convert_system_message_to_human=True  # Gemini requirement
+        )
+    
+    else:
+        raise ValueError(f"Unsupported provider: {provider}")
+
+# ============================================================================
+# TOOLS: Define functions the agent can call
+# ============================================================================
+
+@dataclass
+class Tool:
+    """
+    Tool wrapper that works across all model providers.
+    
+    Why: Different providers expect different tool schemas. This normalizes them.
+    
+    Attributes:
+        name: Function identifier
+        description: What it does (helps model decide when to use)
+        function: Actual callable implementation
+    """
+    name: str
+    description: str
+    function: Any  # The actual tool (e.g., TavilySearch instance)
+    
+    def to_langchain_tool(self):
+        """Convert to LangChain tool format (works with .bind_tools())"""
+        return self.function
+
+def setup_tools() -> List[Tool]:
+    """
+    Initialize all available tools.
+    
+    Why: Centralized tool registry. Easy to add/remove capabilities.
+    
+    Returns:
+        List of Tool objects the agent can use
+    """
+    # Configure search for recent results
+    search_tool = TavilySearch(
+        max_results=5,
+        # Search recent content (prioritizes fresh results)
+        search_depth="advanced",  # More thorough search
+        include_domains=["linkedin.com", "indeed.com", "glassdoor.com", "greenhouse.io"],
+        description="Search the web for CURRENT job postings. Returns recent results with posting dates."
     )
     
-    print("\n" + "=" * 60)
-    print("\n=== JOB LINKS ===\n")
+    return [
+        Tool(
+            name="tavily_search",
+            description="Search for active job postings. Include temporal keywords like 'hiring now', 'January 2026', 'open positions' in queries.",
+            function=search_tool
+        )
+    ]
+
+# ============================================================================
+# AGENT STATE: Track conversation history
+# ============================================================================
+
+@dataclass
+class AgentState:
+    """
+    Maintains agent's context across reasoning steps.
     
-    # Extract only final answer (last AI message)
-    final_msg = result["messages"][-1]
-    print(final_msg.content)
+    Why: The agent needs memory of what it's tried and learned.
+    
+    Attributes:
+        messages: Full conversation history (user queries, agent thoughts, tool results)
+        max_iterations: Safety limit to prevent infinite loops
+    """
+    messages: List[BaseMessage]
+    max_iterations: int = 10
+    
+    def add_message(self, message: BaseMessage):
+        """Append to conversation history"""
+        self.messages.append(message)
+    
+    def get_last_message(self) -> BaseMessage:
+        """Retrieve most recent message"""
+        return self.messages[-1]
+
+# ============================================================================
+# CORE AGENT: The ReAct reasoning loop
+# ============================================================================
+
+class FunctionCallingAgent:
+    """
+    Model-agnostic agent that uses tools via function calling.
+    
+    How it works (ReAct pattern):
+    1. REASON: Decide what to do next based on context
+    2. ACT: Call a tool or provide final answer
+    3. OBSERVE: Get tool results, add to context
+    4. Repeat until task complete
+    
+    Why this design:
+    - Works with any model that supports function calling (OpenAI, Anthropic, etc.)
+    - Explicit control flow vs. hidden framework logic
+    - Easy to debug and modify
+    """
+    
+    def __init__(
+        self,
+        model_provider: ModelProvider,
+        model_name: str = None,
+        system_prompt: str = None
+    ):
+        """
+        Initialize agent with model and instructions.
+        
+        Args:
+            model_provider: Which LLM provider to use
+            model_name: Specific model version (optional)
+            system_prompt: Agent's behavioral instructions
+        """
+        # Get the base LLM
+        self.llm = get_model(model_provider, model_name)
+        
+        # Setup tools
+        self.tools = setup_tools()
+        
+        # Bind tools to model (enables function calling)
+        # Why: Model learns tool schemas and can request to use them
+        self.llm_with_tools = self.llm.bind_tools(
+            [tool.to_langchain_tool() for tool in self.tools]
+        )
+        
+        # Store system instructions
+        self.system_prompt = system_prompt or self._default_system_prompt()
+    
+    def _default_system_prompt(self) -> str:
+        """
+        Default behavioral instructions for the agent.
+        
+        Why: Guides the model's reasoning process and output format.
+        """
+        return """You are a job search assistant using function calling.
+
+Your task: Find ACTIVE AI engineer jobs (currently open for applications).
+
+CRITICAL - Search Strategy for Fresh Jobs:
+1. ALWAYS include temporal keywords in searches:
+   - "hiring now", "open positions", "actively hiring"
+   - Add current month/year to queries (e.g., "January 2026")
+2. Use multiple searches with different date-focused queries
+3. Check search result snippets for indicators like:
+   - "Posted X days ago" (prefer < 7 days)
+   - "Apply now", "Currently hiring"
+   - Avoid: "Closed", "No longer accepting", "Expired"
+
+Process:
+1. Search with recency-focused queries (e.g., "Agentic AI engineer LinkedIn hiring now January 2026")
+2. Verify from snippets that jobs appear ACTIVE (recently posted)
+3. Extract ONLY direct job posting URLs
+4. Filter out: company homepages, blog posts, old articles, archived listings
+5. Prioritize URLs from job boards that show posting dates
+6. Collect at least 3 valid, ACTIVE job URLs
+
+Valid job URL must contain: /jobs/, /careers/, /job/, /positions/, /apply/
+
+Final output format (with posting date if visible):
+- https://url1.com (Posted: X days ago)
+- https://url2.com (Posted: X days ago)
+- https://url3.com
+
+Only include jobs that appear to be currently open. If uncertain, search again with more specific date filters."""
+    
+    def _execute_tool_call(self, tool_call: Dict[str, Any]) -> str:
+        """
+        Execute a tool and return its result.
+        
+        Why: Decouples tool execution from agent logic. Easy to add logging/validation.
+        
+        Args:
+            tool_call: Dict with 'name' and 'args' keys
+        
+        Returns:
+            Tool output as string
+        """
+        tool_name = tool_call["name"]
+        tool_args = tool_call["args"]
+        
+        # Find matching tool
+        tool = next((t for t in self.tools if t.name == tool_name), None)
+        
+        if not tool:
+            return f"Error: Tool '{tool_name}' not found"
+        
+        try:
+            # Execute the tool with provided arguments
+            result = tool.function.invoke(tool_args)
+            return str(result)
+        except Exception as e:
+            return f"Error executing {tool_name}: {str(e)}"
+    
+    def run(self, user_query: str) -> Dict[str, Any]:
+        """
+        Main execution loop - implements ReAct pattern.
+        
+        Args:
+            user_query: User's task/question
+        
+        Returns:
+            Dict with final answer and execution trace
+        """
+        # Initialize state with system prompt and user query
+        state = AgentState(
+            messages=[
+                SystemMessage(content=self.system_prompt),
+                HumanMessage(content=user_query)
+            ]
+        )
+        
+        iteration = 0
+        
+        print(f"\n{'='*70}")
+        print("AGENT EXECUTION TRACE")
+        print(f"{'='*70}\n")
+        
+        # ReAct loop
+        while iteration < state.max_iterations:
+            iteration += 1
+            print(f"--- Iteration {iteration} ---\n")
+            
+            # STEP 1: REASON - Ask model what to do next
+            print("🤔 Agent thinking...")
+            response = self.llm_with_tools.invoke(state.messages)
+            state.add_message(response)
+            
+            # STEP 2: CHECK - Does model want to use tools or is it done?
+            if not response.tool_calls:
+                # No tool calls = agent has final answer
+                print("✅ Agent finished\n")
+                print(f"{'='*70}\n")
+                
+                return {
+                    "answer": response.content,
+                    "iterations": iteration,
+                    "messages": state.messages
+                }
+            
+            # STEP 3: ACT - Execute each tool call
+            print(f"🔧 Calling {len(response.tool_calls)} tool(s)...\n")
+            
+            for tool_call in response.tool_calls:
+                tool_name = tool_call["name"]
+                tool_args = tool_call["args"]
+                
+                print(f"  Tool: {tool_name}")
+                print(f"  Args: {json.dumps(tool_args, indent=2)}")
+                
+                # Execute tool
+                tool_result = self._execute_tool_call(tool_call)
+                
+                print(f"  Result preview: {tool_result[:200]}...\n")
+                
+                # STEP 4: OBSERVE - Add tool result to conversation
+                # Why: Model needs to see what the tool returned to reason about next step
+                state.add_message(
+                    ToolMessage(
+                        content=tool_result,
+                        tool_call_id=tool_call["id"]
+                    )
+                )
+        
+        # Safety: Hit max iterations
+        print(f"⚠️  Reached max iterations ({state.max_iterations})\n")
+        print(f"{'='*70}\n")
+        
+        return {
+            "answer": "Max iterations reached. Task incomplete.",
+            "iterations": iteration,
+            "messages": state.messages
+        }
+
+# ============================================================================
+# USAGE EXAMPLES
+# ============================================================================
+
+def example_openai():
+    """Example: Using OpenAI's GPT-4"""
+    print("\n🤖 Using OpenAI GPT-4o-mini\n")
+    
+    agent = FunctionCallingAgent(
+        model_provider=ModelProvider.OPENAI,
+        model_name="gpt-4o-mini"
+    )
+    
+    result = agent.run(
+        "Find Agentic AI engineer jobs actively hiring on LinkedIn right now"
+    )
+    
+    print("=== FINAL ANSWER ===\n")
+    print(result["answer"])
+    print(f"\nCompleted in {result['iterations']} iterations")
+
+def example_anthropic():
+    """Example: Using Anthropic's Claude"""
+    print("\n🤖 Using Anthropic Claude\n")
+    
+    agent = FunctionCallingAgent(
+        model_provider=ModelProvider.ANTHROPIC,
+        model_name="claude-3-5-sonnet-20241022"
+    )
+    
+    result = agent.run(
+        "Find Agentic AI engineer jobs actively hiring on LinkedIn right now"
+    )
+    
+    print("=== FINAL ANSWER ===\n")
+    print(result["answer"])
+    print(f"\nCompleted in {result['iterations']} iterations")
+
+def example_google():
+    """Example: Using Google Gemini"""
+    print("\n🤖 Using Google Gemini\n")
+    
+    agent = FunctionCallingAgent(
+        model_provider=ModelProvider.GOOGLE,
+        model_name="gemini-3-flash-preview"
+    )
+    
+    result = agent.run(
+        "Find Agentic AI engineer jobs actively hiring on LinkedIn right now"
+    )
+    
+    print("=== FINAL ANSWER ===\n")
+    print(result["answer"])
+    print(f"\nCompleted in {result['iterations']} iterations")
+
+def example_custom_prompt():
+    """Example: Custom system prompt for different behavior"""
+    
+    custom_prompt = """You are a research assistant.
+When searching, provide:
+1. Direct URLs to sources
+2. Brief 1-sentence summary of each
+3. Relevance score (1-10)
+
+Output format:
+[Score] URL - Summary"""
+    
+    agent = FunctionCallingAgent(
+        model_provider=ModelProvider.OPENAI,
+        system_prompt=custom_prompt
+    )
+    
+    result = agent.run("Find papers on LLM agents from 2024")
+    print(result["answer"])
+
+# ============================================================================
+# MAIN: Run examples
+# ============================================================================
 
 if __name__ == "__main__":
-    main()
+    # Choose which example to run:
+    
+    #example_openai()
+    
+    # To switch models, just uncomment:
+    # example_anthropic()
+    example_google()
+    
+    # To customize behavior:
+    # example_custom_prompt()
