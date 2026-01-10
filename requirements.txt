@@ -1,0 +1,19 @@
+# Core LangChain
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-community>=0.3.0
+
+# Vector Stores & Text Processing
+faiss-cpu
+pinecone-client
+langchain-pinecone
+
+# Model Providers
+langchain-google-genai
+langchain-openai
+langchain-anthropic
+
+# Tools & Utilities
+langchain-tavily
+python-dotenv
+certifi
