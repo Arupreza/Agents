@@ -1,0 +1,167 @@
+TUTORIAL: ZERO-SHOT, FEW-SHOT, CoT, AND ReAct PROMPTING (NO FINE-TUNING)
+Goal: Write prompts that reliably produce high-quality outputs.
+
+====================================================================
+
+1. ZERO-SHOT PROMPTING
+   ====================================================================
+   Definition:
+   Give the task with clear instructions and no examples.
+
+S.P.E.C. structure:
+S (Role): Who the model should be
+P (Task): What to do (Analyze/Summarize/Extract/etc.)
+E (Constraints): Format/length/style rules
+C (Goal): What “good” looks like (audience + purpose)
+
+Zero-shot template:
+Role: [Act as …]
+Task: [Do …]
+Constraints: [Must …]
+Goal: [Output ready for …]
+Input:
+
+###
+
+[Your text/data]
+
+###
+
+Output:
+
+Example:
+Act as a Cybersecurity Expert.
+Summarize the text for non-technical stakeholders.
+Constraints: 5 bullets max; focus on security impact only.
+Goal: Executive briefing ready.
+
+====================================================================
+2) FEW-SHOT PROMPTING
+=====================
+
+Definition:
+Teach the pattern by showing a few examples (usually 3–5), then give the real input.
+
+Few-shot template:
+Instruction: [What to do + required format]
+
+Example 1
+Input: …
+Output: …
+
+Example 2
+Input: …
+Output: …
+
+Target
+Input: …
+Output:
+
+Tip:
+Keep labels and formatting identical across all examples.
+
+====================================================================
+3) CHAIN-OF-THOUGHT (CoT)
+=========================
+
+Definition:
+Encourage step-by-step reasoning for multi-step problems.
+
+Simple trigger line:
+“Let’s think step by step.”
+
+When to use:
+
+* Math, logic, multi-constraint decisions
+
+When to avoid:
+
+* Simple summarization, extraction, formatting (wastes tokens)
+
+Optional safer constraint (keeps it short):
+“Show only key steps (3–5 bullets), then the final answer.”
+
+====================================================================
+4) ReAct PROMPTING (REASON + ACT)
+=================================
+
+Definition:
+Use reasoning plus actions (e.g., search/tools) to solve tasks that need information gathering.
+
+Core loop:
+Reason → Act → Observe → Reason → Final
+
+Minimal ReAct prompt (tool-agnostic):
+You are an agent that solves tasks by reasoning and taking actions when needed.
+If information is missing, choose an action to obtain it.
+Use the observation to continue.
+Only give the final answer when you have enough information.
+
+ReAct format template:
+Task: [Your task]
+Tools available: [List tools or say “none”]
+Rules:
+
+* If you need external info, take an action.
+* After each action, use the observation.
+* End with Final Answer.
+
+Format:
+Reason: [brief]
+Action: [tool_name or “none”] | Input: [tool input]
+Observation: [tool result]
+...
+Final Answer: [final]
+
+Example (web search style):
+Task: Find the latest security advisory for Product X and summarize impacts.
+Tools available: WebSearch
+Format:
+Reason: Need the most recent advisory.
+Action: WebSearch | Input: “Product X security advisory latest”
+Observation: [results]
+Reason: Identify the official advisory and key CVEs.
+Final Answer: [5-bullet executive summary]
+
+====================================================================
+END
+====================================================================
+
+====================================================================
+Efficient prompt
+====================================================================
+
+You are a customer support agent for Claude’s Bakery. You specialize in assisting 
+customers with their orders and basic questions about the bakery. Use the tools 
+available to you to resolve the issue efficiently and professionally.
+
+You have access to order management systems, product catalogs, and store policies. 
+Your goal is to resolve issues quickly when possible. Start by understanding the 
+complete situation before proposing solutions, ask follow-up questions if you do 
+not understand.
+
+Response Framework:
+
+Identify the core issue - Look beyond surface complaints to understand what the 
+customer actually needs
+
+Gather necessary context - Use available tools to verify order details, check 
+inventory, or review policies before responding
+
+Provide clear resolution - Offer concrete next steps with realistic timelines
+
+Confirm satisfaction - Ensure the customer understands the resolution and knows 
+how to follow up if needed
+
+Guidelines:
+
+When multiple solutions exist, choose the simplest one that fully addresses the 
+issue
+
+If a user mentions an order, check its status before suggesting next steps
+
+When uncertain, call the human_assistance tool
+
+For legal issues, health/allergy emergencies, or situations requiring financial adjustments beyond standard policies, call the human_assistance tool
+
+Acknowledge frustration or urgency in the user's tone and respond with appropriate empathy
