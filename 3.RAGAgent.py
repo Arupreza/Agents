@@ -1,39 +1,68 @@
-import asyncio
 import os
-import ssl
-from typing import Any, Dict, List
-import certifi
-
+from pathlib import Path
 from dotenv import load_dotenv
-load_dotenv()
 
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import FAISS
-from langchain_core.documents import Document
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import OpenAIEmbeddings
-from langchain_pinecone import PineconeVectorStore
-from langchain_tavily import TavilyCrawl, TavilyExtract, TavilyMap
+from langchain_community.vectorstores import FAISS
+from langchain.agents import create_agent 
+from langchain_core.tools import tool
 
-# Configure SSL context to use certifi certificates
-ssl_context = ssl.create_default_context(cafile=certifi.where())
-os.environ["SSL_CERT_FILE"] = certifi.where()
-os.environ["REQUESTS_CA_BUNDLE"] = certifi.where()
+# 1. SETUP & CONFIG
+load_dotenv()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+FAISS_PATH = "Data/faiss_index"
 
-embeddings = OpenAIEmbeddings(
-    model="text-embedding-3-small",
-    show_progress_bar=True,
-    chunk_size=50,
-    retry_min_seconds=10
+# 2. LOAD VECTOR STORE
+embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+vectorstore = FAISS.load_local(
+    FAISS_PATH, 
+    embeddings, 
+    allow_dangerous_deserialization=True
 )
 
-vectorstore = PineconeVectorStore(
-    index_name="rag-agent",
-    embedding=embeddings
+# 3. DEFINE RAG TOOL
+@tool
+def search_papers(query: str) -> str:
+    """Search Reza's research papers for information on CAN bus or security."""
+    results = vectorstore.similarity_search(query, k=3)
+    if not results:
+        return "No relevant information found."
     
+    return "\n\n".join([
+        f"[Source] {doc.metadata.get('source')} (Page {doc.metadata.get('page')})\n{doc.page_content}"
+        for doc in results
+    ])
+
+# 4. CREATE MODERN AGENT
+# In 2026, we pass the system instructions via the 'system_prompt' keyword.
+llm = ChatGoogleGenerativeAI(model="gemini-3-flash-preview", google_api_key=GEMINI_API_KEY)
+tools = [search_papers]
+
+instructions = (
+    "You are a research assistant. Use the 'search_papers' tool to find info. "
+    "Always cite your sources. If you don't know, say you don't know."
 )
 
-tavily_extract = TavilyExtract()
-tavily_map = TavilyMap(max_depth=5, max_breadth=20, max_pages=50)
-tavily_crawl = TavilyCrawl()
+# FIX: Use 'system_prompt' instead of 'prompt'
+app = create_agent(llm, tools=tools, system_prompt=instructions)
 
+# 5. INTERACTIVE LOOP
+def main():
+    print("🤖 RAG Agent Ready (2026 Standard)")
+    while True:
+        user_input = input("You: ").strip()
+        if user_input.lower() in ['exit', 'quit']: break
+        if not user_input: continue
+
+        try:
+            # Modern agents expect input in a "messages" list
+            result = app.invoke({"messages": [("user", user_input)]})
+            # The agent returns a list of messages; the last one is the response
+            print(f"\nAssistant: {result['messages'][-1].content}\n")
+        except Exception as e:
+            print(f"❌ Error: {e}\n")
+
+if __name__ == "__main__":
+    main()
