@@ -6,6 +6,9 @@ A comprehensive exploration of agentic AI systems using LangChain, LangGraph, an
 ![LangChain](https://img.shields.io/badge/LangChain-Latest-green.svg)
 ![LangGraph](https://img.shields.io/badge/LangGraph-Latest-orange.svg)
 ![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4-purple.svg)
+![Gemini](https://img.shields.io/badge/Google-Gemini-4285F4.svg?logo=google)
+![Llama](https://img.shields.io/badge/Meta-Llama-0467DF.svg?logo=meta)
+![Tavily](https://img.shields.io/badge/Tavily-Search-FF6B6B.svg)
 
 ---
 
@@ -60,9 +63,10 @@ graph TD
 | Component | Technology |
 |-----------|-----------|
 | **Framework** | LangChain, LangGraph |
-| **LLM Provider** | OpenAI (GPT-4) |
+| **LLM Providers** | OpenAI (GPT-4), Google Gemini, Meta Llama |
 | **Vector Store** | FAISS with HNSW indexing |
-| **Tools** | Tavily Search, Custom Tools |
+| **Search Tools** | Tavily Search API |
+| **Custom Tools** | Structured tool integration |
 | **State Management** | LangGraph StateGraph |
 
 ---
