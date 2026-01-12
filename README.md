@@ -70,10 +70,32 @@ graph TD
 
 ## 🚀 Architecture Patterns
 
-### ReAct Agent Flow
+### ReAct Agent Flow (LangGraph Implementation)
 ```
-User Query → Reasoning Step → Action Selection → Tool Execution → Observation → Repeat
+System Prompt (ReAct Instructions)
+          ↓
+User Query → Agent Node (LLM with Tools)
+          ↓
+    Decision Point
+          ↓
+    ┌─────┴─────┐
+    │           │
+Tool Calls?   No Tool Calls
+    │           │
+    ↓           ↓
+Tool Node    END (Final Response)
+    │
+    ↓
+Tool Results → Agent Node (Reasoning)
+    │
+    └──→ (Loop until complete)
 ```
+
+**Key Components**:
+- **State Management**: `AgentState` with message accumulation
+- **Conditional Routing**: `should_continue()` checks for tool calls
+- **Graph Structure**: Agent ↔ Tools cyclic connection until termination
+- **Tool Binding**: LLM bound to tools via `.bind_tools()`
 
 ### RAG Agent Flow
 ```
