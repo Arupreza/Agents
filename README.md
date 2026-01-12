@@ -53,9 +53,6 @@ graph TD
 
 **Key Learning**: Reflection patterns allow agents to critique and improve their own outputs through iterative refinement.
 
-### 4. **Applied AI Systems**
-- Featured Project: **UIDS-II** - Vehicle-model agnostic intrusion detection system using zero-shot temporal learning on BERT for automotive CAN networks
-
 ---
 
 ## 🛠️ Tech Stack
