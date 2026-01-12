@@ -58,6 +58,29 @@ def reflection_node(state: MessgeGraph):
     response = reflection_chain.invoke({"messages": state["messages"]})
     return {"messages": [HumanMessage(content=response.content)]}
 
+#        +-------------------------+
+#        |         START           |
+#        +-----------+-------------+
+#                    |
+#                    v
+#        +-----------+-------------+
+#        |    Node: GENERATE       |<----------+
+#        | (Writes/Revises Tweet)  |           |
+#        +-----------+-------------+           |
+#                    |                         |
+#                    v                         |
+#       +------------+------------+            |
+#       |    Condition Check:     |            |
+#       |   messages >= 6?        |            |
+#       +------+------------+-----+            |
+#              |            |                  |
+#         [YES]|        [NO]|                  |
+#              |            |          +-------+-------+
+#              |            +--------->|  Node: REFLECT |
+#              v                       | (Critiques)   |
+#        +-----------+                 +---------------+
+#        |    END    |
+#        +-----------+
 
 builder = StateGraph(state_schema=MessgeGraph)
 builder.add_node(GENERATE, generation_node)
