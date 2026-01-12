@@ -38,11 +38,17 @@ llm_with_tools = llm.bind_tools(tools)
 # --- 3. GRAPH NODES ---
 
 def run_agent_with_tools(state: MessagesState):
-    """Reasoning node: LLM decides to call a tool or answer."""
-    # Prepend a system message for better instructions
-    sys_msg = SystemMessage(content="You are a helpful assistant. Use tools for real-time data.")
-    messages = [sys_msg] + state["messages"]
+    """Reasoning node: Enforces specific tool usage for skill development."""
     
+    # Updated System Message
+    sys_msg = SystemMessage(content=(
+        "You are a helpful assistant. "
+        "1. Use search for real-time weather data. "
+        "2. ALWAYS convert any Celsius temperature found to Fahrenheit "
+        "using the fahrenheit_converter tool before giving the final answer."
+    ))
+    
+    messages = [sys_msg] + state["messages"]
     response = llm_with_tools.invoke(messages)
     return {"messages": [response]}
 

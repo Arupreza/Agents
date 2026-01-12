@@ -1,10 +1,12 @@
 """
-TUTORIAL: Building an Optimized HNSW Vector Store with FAISS and LangChain
-Goal: Index PDFs with high-performance search using Hierarchical Navigable Small World (HNSW).
+TUTORIAL: Batch Indexing with FAISS HNSW
+Goal: Efficiently index large PDF datasets by processing chunks in manageable batches.
+This approach prevents API timeouts and stays within OpenAI's Rate Limits.
 """
 
 import os
 import faiss
+import time
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -17,59 +19,41 @@ from langchain_community.docstore.in_memory import InMemoryDocstore
 # ==========================================
 # 1. SETUP & CONFIGURATION
 # ==========================================
-# We load API keys and define hyperparameters for chunking and indexing.
 load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 
 if not api_key:
-    raise ValueError("❌ OPENAI_API_KEY not found. Check your .env file.")
+    raise ValueError("❌ OPENAI_API_KEY not found.")
 
-DATA_DIR = "Data/RezaPapers"  # Directory containing PDFs
-SAVE_PATH = "Data/faiss_index" # Folder where the index will be saved
-CHUNK_SIZE = 800               # Max characters per chunk
-CHUNK_OVERLAP = 120            # Context overlap
-EMBED_MODEL = "text-embedding-3-small" # Dimension: 1536
+DATA_DIR = "Data/RezaPapers"
+SAVE_PATH = "Data/faiss_index"
+BATCH_SIZE = 100  # Number of chunks processed per API call
+EMBED_MODEL = "text-embedding-3-small"
 
 # ==========================================
 # 2. DOCUMENT PROCESSING
 # ==========================================
 print("🔎 Step 1: Loading and Splitting Documents...")
 
-# DirectoryLoader crawls the folder for all PDFs
 loader = DirectoryLoader(DATA_DIR, glob="**/*.pdf", loader_cls=PyPDFLoader)
 documents = loader.load()
 
-if not documents:
-    raise ValueError(f"❌ No PDFs found in {DATA_DIR}")
-
-# Recursive splitting maintains paragraph/sentence integrity better than character splitting
-splitter = RecursiveCharacterTextSplitter(
-    chunk_size=CHUNK_SIZE,
-    chunk_overlap=CHUNK_OVERLAP
-)
+splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=120)
 chunks = splitter.split_documents(documents)
-print(f"✅ Created {len(chunks)} text chunks.")
+print(f"✅ Total chunks created: {len(chunks)}")
 
 # ==========================================
-# 3. HNSW INDEX CONSTRUCTION
+# 3. BATCHED HNSW CONSTRUCTION
 # ==========================================
-print("🔎 Step 2: Configuring FAISS HNSW Index...")
+print(f"🔎 Step 2: Building Index in Batches of {BATCH_SIZE}...")
 
-# Initialize the embedding model
+# 1. Initialize Embeddings and empty FAISS Index
 embeddings = OpenAIEmbeddings(model=EMBED_MODEL)
+dim = 1536 
+index = faiss.IndexHNSWFlat(dim, 64)
+index.hnsw.efConstruction = 200
 
-# Define HNSW parameters
-# M: Number of bi-directional links per node. Higher = more accurate/more memory.
-# efConstruction: Accuracy vs Speed tradeoff during index building.
-dim = 1536  # Dimension for text-embedding-3-small
-M = 64
-ef_construction = 200
-
-# Create the low-level FAISS index
-index = faiss.IndexHNSWFlat(dim, M)
-index.hnsw.efConstruction = ef_construction
-
-# Wrap the FAISS index into LangChain's VectorStore
+# 2. Create the VectorStore container (initially empty)
 vectorstore = FAISS(
     embedding_function=embeddings,
     index=index,
@@ -77,37 +61,38 @@ vectorstore = FAISS(
     index_to_docstore_id={}
 )
 
-# Add documents (This step triggers the embedding generation via OpenAI)
-vectorstore.add_documents(chunks)
-print("✅ HNSW Index successfully built.")
+# 
+
+# 3. The Batch Loop
+# We iterate through the chunks list using the BATCH_SIZE as our step
+for i in range(0, len(chunks), BATCH_SIZE):
+    batch = chunks[i : i + BATCH_SIZE]
+    print(f"🚀 Indexing batch {i//BATCH_SIZE + 1}/{(len(chunks)-1)//BATCH_SIZE + 1}...")
+    
+    # Each call here generates embeddings for only the current batch
+    vectorstore.add_documents(batch)
+    
+    # Small pause to avoid hitting Rate Limits (Tokens Per Minute)
+    time.sleep(0.5) 
+
+print("✅ All batches indexed successfully.")
 
 # ==========================================
-# 4. PERSISTENCE (SAVE/LOAD)
+# 4. PERSISTENCE & TESTING
 # ==========================================
-print("🔎 Step 3: Saving Index to Disk...")
+print("🔎 Step 3: Saving and Testing...")
+
 Path(SAVE_PATH).parent.mkdir(parents=True, exist_ok=True)
 vectorstore.save_local(SAVE_PATH)
 
-# Reloading ensures the index is persistent and valid
-new_db = FAISS.load_local(
-    SAVE_PATH, 
-    embeddings, 
-    allow_dangerous_deserialization=True # Required for loading pickle files
-)
-print("✅ Index saved and reloaded successfully.")
-
-# ==========================================
-# 5. SIMILARITY SEARCH (TESTING)
-# ==========================================
-print("🔎 Step 4: Performing Query...")
+# Reload to verify integrity
+new_db = FAISS.load_local(SAVE_PATH, embeddings, allow_dangerous_deserialization=True)
 
 query = "intrusion detection in CAN bus"
-# Search for top 3 matches
 results = new_db.similarity_search(query, k=3)
 
 for i, res in enumerate(results):
-    print(f"\n--- Result {i+1} ---")
-    print(f"Source: {res.metadata.get('source')}")
-    print(f"Content: {res.page_content[:200]}...")
+    print(f"\n[Result {i+1}] Source: {res.metadata.get('source')}")
+    print(f"Snippet: {res.page_content[:150]}...")
 
-print("\n🚀 Tutorial Complete.")
+print("\n🚀 Batch Indexing Tutorial Complete.")
