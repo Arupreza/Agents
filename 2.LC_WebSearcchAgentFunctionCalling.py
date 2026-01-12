@@ -1,3 +1,5 @@
+# ASCII flowchart of the ReAct agent process
+# ==============================================================================
 # [ START: User Query ]
 #           |
 #           v

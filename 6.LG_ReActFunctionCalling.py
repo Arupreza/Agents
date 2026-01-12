@@ -7,7 +7,7 @@ from langchain_openai import ChatOpenAI
 from langchain_tavily import TavilySearch
 from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-
+from langchain_google_genai import ChatGoogleGenerativeAI
 # LangGraph Imports
 from langgraph.graph import MessagesState, StateGraph, END
 from langgraph.prebuilt import ToolNode
@@ -32,6 +32,7 @@ tools = [search_tool, fahrenheit_converter]
 
 # We use gpt-4o-mini for fast, accurate tool calling
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+#llm = ChatGoogleGenerativeAI(model="gemini-3-flash-preview", google_api_key=os.getenv("GEMINI_API_KEY"))
 # CRITICAL: This allows the LLM to "see" and use your tools
 llm_with_tools = llm.bind_tools(tools)
 
@@ -46,6 +47,7 @@ def run_agent_with_tools(state: MessagesState):
         "1. Use search for real-time weather data. "
         "2. ALWAYS convert any Celsius temperature found to Fahrenheit "
         "using the fahrenheit_converter tool before giving the final answer."
+        "In final answer the temperature will be is both in Celsius and Fahrenheit."
     ))
     
     messages = [sys_msg] + state["messages"]
@@ -56,6 +58,13 @@ def run_agent_with_tools(state: MessagesState):
 tool_node = ToolNode(tools)
 
 # --- 4. CONDITIONAL LOGIC ---
+# --- CONDITIONAL ROUTER ---
+# This function acts as the "Decision Gate" for the graph.
+# 1. It inspects the last message in the conversation state.
+# 2. 'isinstance(last_message, AIMessage)' ensures the message came from the LLM.
+# 3. 'last_message.tool_calls' checks if the LLM generated a request to use a tool.
+# 4. Returns "ACT" to trigger the 'act' node (ToolNode) if tools are needed.
+# 5. Returns "END" if the LLM has provided a final text answer without tool requests.
 
 def should_continue(state: MessagesState) -> Literal["ACT", "END"]:
     """Routes the flow based on whether the LLM wants to use a tool."""
@@ -66,6 +75,27 @@ def should_continue(state: MessagesState) -> Literal["ACT", "END"]:
     return "END"
 
 # --- 5. GRAPH CONSTRUCTION ---
+
+# [ START: app.invoke() ]
+#                   |
+#                   v
+#        +----------------------+
+#        |  agent_reason (Node) | <--- LLM: "Should I use a tool or answer?"
+#        +----------------------+
+#                   |
+#                   v
+#        /----------------------\
+#       |    should_continue?    | <--- Router (Conditional Edge)
+#        \----------------------/
+#           |                |
+#           | "ACT"          | "END"
+#           v                v
+#   +----------------+    +------------+
+#   |   act (Node)   |    |    END     | <--- Final result returned to user
+#   | (ToolNode)     |    +------------+
+#   +----------------+
+#           |
+#           +---- (Loop Back) ----> [ agent_reason ]
 
 workflow = StateGraph(MessagesState)
 
