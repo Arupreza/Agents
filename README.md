@@ -322,33 +322,51 @@ User Query
 ### 7. Reflexion Agent (`8.LG_ReflexionAgent.py`)
 
 ```
-[ START ]
-    ↓
-┌─────────────────────┐
-│  draft (Node)       │ ← first_responder: Answer + Reflection + Queries
-└─────────────────────┘
-    ↓
-┌─────────────────────┐
-│ execute_tools       │ ← run_queries: Batch Tavily searches
-│ (ToolNode)          │
-└─────────────────────┘
-    ↓
-┌─────────────────────┐
-│  revise (Node)      │ ← revisor: Incorporate search results + Citations
-└─────────────────────┘
-    ↓
-┌─────────────────────┐
-│ event_loop          │ ← Check ToolMessage count
-│ (Conditional)       │
-└─────────────────────┘
-    │                │
-    │ count >= 2     │ count < 2
-    ↓                ↓
-┌─────┐      ┌──────────────┐
-│ END │      │ execute_tools│ ← Loop back for more research
-└─────┘      └──────────────┘
-                   │
-                   └──→ Back to revise
++---------------------------+
+|           START           |
++---------------------------+
+              |
+              v
++---------------------------+
+|           draft           |
+|  (draft_node)             |
+|  - first_responder.invoke |
+|  - (parse tool call JSON) |
+|  - (parse to AnswerQuestion)
++---------------------------+
+              |
+              v
++---------------------------+
+|        execute_tools       |
+|   (ToolNode)               |
+|   - reads last AI tool call |
+|   - calls run_queries(...)  |
+|   - returns ToolMessage     |
++---------------------------+
+              |
+              v
++---------------------------+
+|           revise          |
+|  (revise_node)            |
+|  - revisor.invoke         |
+|  - (parse tool call JSON) |
+|  - (parse to ReviseAnswer)|
++---------------------------+
+              |
+              v
++-------------------------------+
+|         event_loop            |
+| count ToolMessages in state   |
+|  - if >= 2  -> END            |
+|  - else    -> execute_tools   |
++-------------------------------+
+        |                  |
+        | (>=2)            | (<2)
+        v                  |
++------------------+       |
+|       END        |<------+
++------------------+
+
 ```
 
 **Key Components**:
