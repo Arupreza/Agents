@@ -28,3 +28,28 @@ def ingest_and_merge_pdf(file_path: str):
 
     vectorstore.save_local(INDEX_PATH)
     print(f"✅ Successfully added {file_path} to index.")
+
+def retriever(search_type="similarity", k=5):
+    """
+    Loads the FAISS index and returns a retriever object.
+    """
+    # 1. Strict Path Check
+    faiss_file = os.path.join(INDEX_PATH, "index.faiss")
+    if not os.path.exists(faiss_file):
+        raise FileNotFoundError(
+            f"❌ FAISS index not found at {faiss_file}. "
+            "You must run ingestion first."
+        )
+
+    # 2. Load the local index
+    vectorstore = FAISS.load_local(
+        INDEX_PATH, 
+        embeddings, 
+        allow_dangerous_deserialization=True
+    )
+
+    # 3. Return the instantiated object
+    return vectorstore.as_retriever(
+        search_kwargs={"k": k}, 
+        search_type=search_type
+    )
