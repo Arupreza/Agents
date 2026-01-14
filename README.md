@@ -527,6 +527,7 @@ cp .env.example .env
 - [ReAct Paper](https://arxiv.org/abs/2210.03629): "ReAct: Synergizing Reasoning and Acting in Language Models"
 - [RAG Paper](https://arxiv.org/abs/2005.11401): "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks"
 - [Reflexion Paper](https://arxiv.org/abs/2303.11366): "Reflexion: Language Agents with Verbal Reinforcement Learning"
+- [Corrective RAG Paper](https://arxiv.org/abs/2401.15884): "Corrective Retrieval Augmented Generation"
 
 ---
 
