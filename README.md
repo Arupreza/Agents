@@ -412,31 +412,37 @@ User Query
       │
       └──→ generate (with web results)
 ```
-9.LG_CorrectiveRAG/
-  ├── Data/                    # FAISS index storage
+### 4. **Corrective RAG (CRAG)**
+- `9.LG_CorrectiveRAG/` - Corrective RAG with fallback web search
+```
+  9.LG_CorrectiveRAG/
+  ├── Data/                         # FAISS index storage
   │   └── faiss_index/
-  ├── src/                     # Source code
+  ├── src/                          # Source code
   │   ├── __init__.py
-  │   ├── ingestion.py         # Database/Vectorstore setup
-  │   ├── consts.py            # String constants
-  │   ├── state.py             # GraphState definition
-  │   ├── chains/              # LLM logic (Prompts/Parsers)
+  │   ├── ingestion.py              # Database/Vectorstore setup
+  │   ├── consts.py                 # String constants
+  │   ├── state.py                  # GraphState definition
+  │   ├── chains/                   # LLM logic (Prompts/Parsers)
   │   │   ├── __init__.py
-  │   │   ├── generation.py    # Answer generation chain
-  │   │   └── retrieval_grader.py  # Document relevance grading
-  │   ├── nodes/               # Graph node functions
+  │   │   ├── generation.py         # Answer generation chain
+  │   │   └── retrieval_grader.py   # Document relevance grading
+  │   ├── nodes/                    # Graph node functions
   │   │   ├── __init__.py
-  │   │   ├── retrieve.py      # Vector store retrieval
-  │   │   ├── grade_documents.py  # Document grading node
-  │   │   ├── generate.py      # Generation node
-  │   │   └── web_search.py    # Fallback web search
-  │   └── graph.py             # StateGraph construction
-  ├── tests/                   # Unit tests
+  │   │   ├── retrieve.py           # Vector store retrieval
+  │   │   ├── grade_documents.py    # Document grading node
+  │   │   ├── generate.py           # Generation node
+  │   │   └── web_search.py         # Fallback web search
+  │   └── graph.py                  # StateGraph construction
+  ├── tests/                        # Unit tests
   │   └── test_chains.py
-  ├── .env                     # Environment variables
-  ├── main.py                  # Entry point
-  └── pyproject.toml           # uv configuration
-  
+  ├── .env                          # Environment variables
+  ├── main.py                       # Entry point
+  └── pyproject.toml                # uv configuration
+```
+
+**Key Learning**: Corrective RAG evaluates retrieval quality and falls back to web search when local knowledge is insufficient, combining best of both retrieval and search paradigms.
+
 **Workflow Logic**:
 ```python
 if any_doc_relevant:
