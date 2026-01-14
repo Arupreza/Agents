@@ -12,83 +12,6 @@ A comprehensive exploration of agentic AI systems using LangChain, LangGraph, an
 
 ---
 
-### 8. Corrective RAG (CRAG) (`9.LG_CorrectiveRAG/`)
-
-```
-[ User Question ]
-      ↓
-┌─────────────────────┐
-│   retrieve          │ ← VectorStoreRetriever: FAISS similarity search
-│   (Node)            │
-└─────────────────────┘
-      ↓
-┌─────────────────────┐
-│ grade_documents     │ ← LLM judges: "relevant" or "not relevant"
-│ (Node)              │    for each retrieved doc
-└─────────────────────┘
-      ↓
-┌─────────────────────┐
-│ decide_to_generate  │ ← Conditional Edge (Router)
-│ (Decision Gate)     │
-└─────────────────────┘
-      │                    │
-      │ "web_search"       │ "generate"
-      ↓                    ↓
-┌─────────────────┐   ┌─────────────────────┐
-│  web_search     │   │     generate        │ ← LLM synthesizes answer
-│  (Node)         │   │     (Node)          │    from relevant docs
-│  Tavily API     │   └─────────────────────┘
-└─────────────────┘               ↓
-      │                        [ END ]
-      │
-      └──→ generate (with web results)
-```
-
-**Workflow Logic**:
-```python
-if any_doc_relevant:
-    # At least one doc is relevant
-    if all_docs_relevant:
-        # All docs relevant → direct generation
-        return "generate"
-    else:
-        # Some docs irrelevant → augment with web search
-        return "web_search"
-else:
-    # No relevant docs → fallback to web search only
-    return "web_search"
-```
-
-**Key Components**:
-
-**Chains** (Modular Prompt + LLM combinations):
-- `retrieval_grader.py`: Binary classifier (relevant/not relevant) with structured output
-- `generation.py`: RAG chain that synthesizes answer from context
-
-**Nodes** (Graph execution units):
-- `retrieve.py`: Fetches top-k documents from FAISS vector store
-- `grade_documents.py`: Filters documents, keeps only relevant ones
-- `web_search.py`: Falls back to Tavily search when retrieval insufficient
-- `generate.py`: Final answer generation with context
-
-**Architecture Benefits**:
-- **Self-Correcting**: Validates retrieval quality before generation
-- **Hybrid Approach**: Combines local knowledge (FAISS) + real-time web search
-- **Modular Design**: Chains and nodes are independently testable
-- **Structured Outputs**: Pydantic models ensure reliable grading (binary: yes/no)
-- **Performance Metrics**: LangSmith tracing shows retrieval (2.97s) and grading overhead (5.68s)
-
-**State Flow**:
-```python
-class GraphState(TypedDict):
-    question: str              # User query
-    documents: List[Document]  # Retrieved docs
-    generation: str            # Final answer
-    web_search: str           # Flag: "Yes" to trigger search
-```
-
----
-
 ## 📚 Learning Journey
 
 This repository documents my exploration of building intelligent agents with various architectures and capabilities.
@@ -129,18 +52,6 @@ graph TD
 - `8.LG_ReflexionAgent.py` - Enhanced reflexion pattern
 
 **Key Learning**: Reflection patterns allow agents to critique and improve their own outputs through iterative refinement.
-
-### 4. **Corrective RAG (CRAG)**
-- `9.LG_CorrectiveRAG/` - Corrective RAG with fallback web search
-  - `chains/generation.py` - Answer generation chain
-  - `chains/retrieval_grader.py` - Document relevance grading
-  - `nodes/generate.py` - Generation node
-  - `nodes/grade_documents.py` - Document grading node
-  - `nodes/retrieve.py` - Vector store retrieval
-  - `nodes/web_search.py` - Fallback web search
-  - `main.py` - Complete CRAG workflow
-
-**Key Learning**: Corrective RAG evaluates retrieval quality and falls back to web search when local knowledge is insufficient, combining best of both retrieval and search paradigms.
 
 ---
 
@@ -411,33 +322,51 @@ User Query
 ### 7. Reflexion Agent (`8.LG_ReflexionAgent.py`)
 
 ```
-[ START ]
-    ↓
-┌─────────────────────┐
-│  draft (Node)       │ ← first_responder: Answer + Reflection + Queries
-└─────────────────────┘
-    ↓
-┌─────────────────────┐
-│ execute_tools       │ ← run_queries: Batch Tavily searches
-│ (ToolNode)          │
-└─────────────────────┘
-    ↓
-┌─────────────────────┐
-│  revise (Node)      │ ← revisor: Incorporate search results + Citations
-└─────────────────────┘
-    ↓
-┌─────────────────────┐
-│ event_loop          │ ← Check ToolMessage count
-│ (Conditional)       │
-└─────────────────────┘
-    │                │
-    │ count >= 2     │ count < 2
-    ↓                ↓
-┌─────┐      ┌──────────────┐
-│ END │      │ execute_tools│ ← Loop back for more research
-└─────┘      └──────────────┘
-                   │
-                   └──→ Back to revise
++---------------------------+
+|           START           |
++---------------------------+
+              |
+              v
++---------------------------+
+|           draft           |
+|  (draft_node)             |
+|  - first_responder.invoke |
+|  - (parse tool call JSON) |
+|  - (parse to AnswerQuestion)
++---------------------------+
+              |
+              v
++---------------------------+
+|        execute_tools       |
+|   (ToolNode)               |
+|   - reads last AI tool call |
+|   - calls run_queries(...)  |
+|   - returns ToolMessage     |
++---------------------------+
+              |
+              v
++---------------------------+
+|           revise          |
+|  (revise_node)            |
+|  - revisor.invoke         |
+|  - (parse tool call JSON) |
+|  - (parse to ReviseAnswer)|
++---------------------------+
+              |
+              v
++-------------------------------+
+|         event_loop            |
+| count ToolMessages in state   |
+|  - if >= 2  -> END            |
+|  - else    -> execute_tools   |
++-------------------------------+
+        |                  |
+        | (>=2)            | (<2)
+        v                  |
++------------------+       |
+|       END        |<------+
++------------------+
+
 ```
 
 **Key Components**:
@@ -448,6 +377,84 @@ User Query
 - **Citation System**: Numerical references [1], [2] with References section
 - **Iteration Control**: Limits to 2 tool executions via ToolMessage count
 - **Temporal Context**: `datetime.now().isoformat()` in prompt for time-aware responses
+
+---
+---
+
+### 8. Corrective RAG (CRAG) (`9.LG_CorrectiveRAG/`)
+
+```
+[ User Question ]
+      ↓
+┌─────────────────────┐
+│   retrieve          │ ← VectorStoreRetriever: FAISS similarity search
+│   (Node)            │
+└─────────────────────┘
+      ↓
+┌─────────────────────┐
+│ grade_documents     │ ← LLM judges: "relevant" or "not relevant"
+│ (Node)              │    for each retrieved doc
+└─────────────────────┘
+      ↓
+┌─────────────────────┐
+│ decide_to_generate  │ ← Conditional Edge (Router)
+│ (Decision Gate)     │
+└─────────────────────┘
+      │                    │
+      │ "web_search"       │ "generate"
+      ↓                    ↓
+┌─────────────────┐   ┌─────────────────────┐
+│  web_search     │   │     generate        │ ← LLM synthesizes answer
+│  (Node)         │   │     (Node)          │    from relevant docs
+│  Tavily API     │   └─────────────────────┘
+└─────────────────┘               ↓
+      │                        [ END ]
+      │
+      └──→ generate (with web results)
+```
+
+**Workflow Logic**:
+```python
+if any_doc_relevant:
+    # At least one doc is relevant
+    if all_docs_relevant:
+        # All docs relevant → direct generation
+        return "generate"
+    else:
+        # Some docs irrelevant → augment with web search
+        return "web_search"
+else:
+    # No relevant docs → fallback to web search only
+    return "web_search"
+```
+
+**Key Components**:
+
+**Chains** (Modular Prompt + LLM combinations):
+- `retrieval_grader.py`: Binary classifier (relevant/not relevant) with structured output
+- `generation.py`: RAG chain that synthesizes answer from context
+
+**Nodes** (Graph execution units):
+- `retrieve.py`: Fetches top-k documents from FAISS vector store
+- `grade_documents.py`: Filters documents, keeps only relevant ones
+- `web_search.py`: Falls back to Tavily search when retrieval insufficient
+- `generate.py`: Final answer generation with context
+
+**Architecture Benefits**:
+- **Self-Correcting**: Validates retrieval quality before generation
+- **Hybrid Approach**: Combines local knowledge (FAISS) + real-time web search
+- **Modular Design**: Chains and nodes are independently testable
+- **Structured Outputs**: Pydantic models ensure reliable grading (binary: yes/no)
+- **Performance Metrics**: LangSmith tracing shows retrieval (2.97s) and grading overhead (5.68s)
+
+**State Flow**:
+```python
+class GraphState(TypedDict):
+    question: str              # User query
+    documents: List[Document]  # Retrieved docs
+    generation: str            # Final answer
+    web_search: str           # Flag: "Yes" to trigger search
+```
 
 ---
 
@@ -510,4 +517,4 @@ MIT License - See LICENSE file for details
 
 ---
 
-**Note**: This repository represents active learning. Code quality and patterns evolve as understanding deepens.
+**Note**: This repository represents active learning. Code quality and patterns evolve as understanding deep
