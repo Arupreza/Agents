@@ -412,8 +412,8 @@ User Query
       │
       └──→ generate (with web results)
 ```
-### 4. **Corrective RAG (CRAG)**
-- `9.LG_CorrectiveRAG/` - Corrective RAG with fallback web search
+
+
 ```
   9.LG_CorrectiveRAG/
   ├── Data/                         # FAISS index storage
