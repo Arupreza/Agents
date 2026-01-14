@@ -44,6 +44,7 @@ graph TD
 ### 2. **RAG (Retrieval-Augmented Generation)**
 - `3.LC_RAGAgent.py` - Basic RAG implementation
 - `4.FiassIndexingHNSWOpenai.py` - FAISS vector indexing with HNSW algorithm
+- `9.LG_CorrectiveRAG` - Advance RAG implementation
 
 **Key Learning**: RAG combines retrieval mechanisms with generation, enabling agents to access external knowledge bases dynamically.
 
