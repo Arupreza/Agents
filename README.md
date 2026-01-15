@@ -20,14 +20,23 @@ This repository documents my exploration of building intelligent agents with var
 
 ```mermaid
 graph TD
-    A[Agentic AI] --> B[ReAct Pattern]
-    A --> C[RAG Systems]
-    A --> D[Reflection]
-    A --> E[Function Calling]
-    B --> F[Web Search Agents]
-    C --> G[Document Indexing]
-    D --> H[Self-Critique]
-    E --> I[Tool Integration]
+    A[RAG Systems] --> B[Corrective RAG]
+    A --> C[Self-RAG]
+
+    B --> D[Retrieve (FAISS)]
+    B --> E[Grade Relevance]
+    B --> F[Web Search Fallback]
+    B --> G[Generate Answer]
+    B --> H[Grounding / Hallucination Check]
+    B --> I[Usefulness Check]
+    B --> J[Route / Retry]
+
+    C --> K[Retrieve (FAISS)]
+    C --> L[Generate Answer]
+    C --> M[Self-Check (Support? Missing Evidence?)]
+    C --> N[Refine Query]
+    C --> O[Retrieve Again]
+    C --> P[Iterative Loop]
 ```
 
 ---
