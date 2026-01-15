@@ -42,9 +42,24 @@ graph TD
 **Key Learning**: ReAct (Reasoning + Acting) enables agents to iteratively reason about problems and take actions based on observations.
 
 ### 2. **RAG (Retrieval-Augmented Generation)**
-- `3.LC_RAGAgent.py` - Basic RAG implementation
-- `4.FiassIndexingHNSWOpenai.py` - FAISS vector indexing with HNSW algorithm
-- `9.LG_CorrectiveRAG` - Advance RAG implementation
+- **`3.LC_RAGAgent.py`**  
+  Basic RAG pipeline: load documents → embed → retrieve top-k → inject context into the prompt → generate answer.
+
+- **`4.FiassIndexingHNSWOpenai.py`**  
+  FAISS vector indexing with **HNSW** (approximate nearest neighbor) + OpenAI embeddings. Includes index build/save/load patterns for faster retrieval at scale.
+
+- **`9.LG_CorrectiveRAG/`**  
+  Advanced **Corrective RAG** with LangGraph:
+  - Retrieve (FAISS) → Grade relevance (LLM)
+  - If no relevant docs → Web search fallback
+  - Generate → Validate grounding (hallucination grader) + answer usefulness (answer grader)
+  - Route/Retry based on validation results
+
+- **`10.LG_SelfRAG/`**  
+  **Self-RAG** with LangGraph: iterative retrieval + self-verification loop.
+  - Retrieve → Generate → Self-check (supported? missing evidence?)
+  - If weak grounding → refine query and retrieve again (DB-first, optional web fallback)
+  - Regenerate using improved context (often with attempt limits and citation/grounding rules)
 
 **Key Learning**: RAG combines retrieval mechanisms with generation, enabling agents to access external knowledge bases dynamically.
 
