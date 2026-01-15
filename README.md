@@ -520,39 +520,63 @@ class GraphState(TypedDict):
 
 ```
 [ START ]
-    ↓
+   ↓
 ┌─────────────────────┐
-│   RETRIEVE          │ ← VectorStoreRetriever: FAISS similarity search
-│   (Node)            │
+│ RETRIEVE            │  FAISS similarity search (k)
 └─────────────────────┘
-    ↓
+   ↓
 ┌─────────────────────┐
-│ GRADE_DOCUMENTS     │ ← LLM judges: "relevant" or "not relevant"
-│ (Node)              │    for each retrieved doc
+│ GRADE_DOCUMENTS     │  Keep only "relevant" docs
 └─────────────────────┘
-    ↓
+   ↓
 ┌─────────────────────┐
-│ decide_to_generate  │ ← Conditional Edge (Router)
-│ (Decision Gate)     │
+│ ROUTE_CONTEXT       │  If relevant docs exist → GENERATE
+│ (Decision Gate #1)  │  Else → WEBSEARCH
 └─────────────────────┘
-    │                    │
-    │ "WEBSEARCH"        │ "GENERATE"
-    ↓                    ↓
-┌─────────────┐     ┌─────────────────────┐
-│ WEBSEARCH   │     │    GENERATE         │ ← LLM synthesizes answer
-│ (Node)      │     │    (Node)           │    from relevant docs
-└─────────────┘     └─────────────────────┘
-    │                    ↓
-    │              ┌─────────────────────────────┐
-    │              │ grade_generation_grounded   │ ← Hallucination check
-    │              │ _in_documents_and_question  │    + Answer quality
-    │              └─────────────────────────────┘
-    │                    │
-    │                    ├─── "not supported" ──→ (Loop back to GENERATE)
-    │                    ├─── "useful" ──────────→ [ END ]
-    │                    └─── "not useful" ─────→ WEBSEARCH
-    │                                               │
-    └────────────────────────────────────────────→ GENERATE
+   │                         │
+   │ no relevant docs        │ relevant docs
+   ↓                         ↓
+┌─────────────────────┐     ┌─────────────────────┐
+│ WEBSEARCH            │     │ GENERATE            │
+│ (produce docs)       │     │ (answer from docs)  │
+└─────────────────────┘     └─────────────────────┘
+   ↓                         ↓
+┌─────────────────────────────────────────────────┐
+│ MERGE_CONTEXT                                  │
+│ (set state["documents"] = web_docs or merged)  │
+└─────────────────────────────────────────────────┘
+   ↓
+┌─────────────────────┐
+│ GENERATE            │  Always generates from state["documents"]
+└─────────────────────┘
+   ↓
+┌─────────────────────────────────────────────┐
+│ VALIDATE_GENERATION                         │
+│ - grounded_in_documents? (hallucination)    │
+│ - answers_question? (usefulness)            │
+└─────────────────────────────────────────────┘
+   ↓
+┌─────────────────────┐
+│ ROUTE_POSTCHECK     │  (Decision Gate #2)
+└─────────────────────┘
+   │            │                 │
+   │ useful     │ not supported   │ not useful
+   ↓            ↓                 ↓
+ [ END ]   ┌───────────────┐  ┌─────────────────────┐
+           │ IMPROVE_CTX   │  │ WEBSEARCH            │
+           │ (retry route) │  │ (broaden context)    │
+           └───────────────┘  └─────────────────────┘
+                 ↓                    ↓
+          ┌─────────────────────┐    │
+          │ GENERATE            │ ←──┘
+          └─────────────────────┘
+                 ↓
+          ┌─────────────────────┐
+          │ VALIDATE_GENERATION │
+          └─────────────────────┘
+                 ↓
+             (loop until useful or max_iters)
+
 ```
 
 ---
