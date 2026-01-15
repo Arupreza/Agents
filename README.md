@@ -412,30 +412,30 @@ User Query
 [ User Question ]
       ↓
 ┌─────────────────────┐
-│ RETRIEVE (FAISS)     │  Top-k similarity search
+│ RETRIEVE (FAISS)    │  Top-k similarity search
 └─────────────────────┘
       ↓
 ┌─────────────────────┐
-│ GRADE_DOCUMENTS      │  Filter: keep only relevant docs
+│ GRADE_DOCUMENTS     │  Filter: keep only relevant docs
 └─────────────────────┘
       ↓
 ┌─────────────────────┐
-│ ROUTER (decide_to_   │  If docs exist → GENERATE
-│ generate)            │  Else → WEB_SEARCH
+│ ROUTER (decide_to_  │  If docs exist → GENERATE
+│ generate)           │  Else → WEB_SEARCH
 └─────────────────────┘
       │ Yes (docs)                 │ No (no docs)
       │                            │
       ↓                            ↓
 ┌─────────────────────┐     ┌─────────────────────┐
-│ GENERATE             │     │ WEB_SEARCH (Tavily)  │
-│ (from FAISS docs)    │     │ (fetch web results)  │
+│ GENERATE            │     │ WEB_SEARCH (Tavily) │
+│ (from FAISS docs)   │     │ (fetch web results) │
 └─────────────────────┘     └─────────────────────┘
       ↓                            │
     [ END ]                        │
                                    ↓
                            ┌─────────────────────┐
-                           │ GENERATE             │
-                           │ (from web results)   │
+                           │ GENERATE            │
+                           │ (from web results)  │
                            └─────────────────────┘
                                    ↓
                                  [ END ]
@@ -538,13 +538,13 @@ class GraphState(TypedDict):
    │ no relevant docs        │ relevant docs
    ↓                         ↓
 ┌─────────────────────┐     ┌─────────────────────┐
-│ WEBSEARCH            │     │ GENERATE            │
-│ (produce docs)       │     │ (answer from docs)  │
+│ WEBSEARCH           │     │ GENERATE            │
+│ (produce docs)      │     │ (answer from docs)  │
 └─────────────────────┘     └─────────────────────┘
    ↓                         ↓
 ┌─────────────────────────────────────────────────┐
-│ MERGE_CONTEXT                                  │
-│ (set state["documents"] = web_docs or merged)  │
+│ MERGE_CONTEXT                                   │
+│ (set state["documents"] = web_docs or merged)   │
 └─────────────────────────────────────────────────┘
    ↓
 ┌─────────────────────┐
@@ -564,8 +564,8 @@ class GraphState(TypedDict):
    │ useful     │ not supported   │ not useful
    ↓            ↓                 ↓
  [ END ]   ┌───────────────┐  ┌─────────────────────┐
-           │ IMPROVE_CTX   │  │ WEBSEARCH            │
-           │ (retry route) │  │ (broaden context)    │
+           │ IMPROVE_CTX   │  │ WEBSEARCH           │
+           │ (retry route) │  │ (broaden context)   │
            └───────────────┘  └─────────────────────┘
                  ↓                    ↓
           ┌─────────────────────┐    │
