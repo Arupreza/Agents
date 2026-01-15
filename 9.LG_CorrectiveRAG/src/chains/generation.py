@@ -9,4 +9,3 @@ Context: {context}
 Answer:"""
 prompt = ChatPromptTemplate.from_template(prompt_text)
 generation_chain = prompt | llm | StrOutputParser()
-

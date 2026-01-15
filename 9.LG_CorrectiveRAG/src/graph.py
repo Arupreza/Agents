@@ -11,14 +11,13 @@ load_dotenv()
 def decide_to_generate(state):
     print("---ASSESS GRADED DOCUMENTS---")
 
-    if state["web_search"]:
-        print(
-            "---DECISION: NOT ALL DOCUMENTS ARE NOT RELEVANT TO QUESTION, INCLUDE WEB SEARCH---"
-        )
+    docs = state.get("documents", [])  # after grading, these should be "relevant only"
+    if not docs or len(docs) == 0:
+        print("---DECISION: NO RELEVANT DOCS, DO WEB SEARCH---")
         return WEBSEARCH
-    else:
-        print("---DECISION: GENERATE---")
-        return GENERATE
+
+    print("---DECISION: GENERATE FROM VECTOR DB---")
+    return GENERATE
 
 workflow = StateGraph(GraphState)
 
