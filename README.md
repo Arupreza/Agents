@@ -412,30 +412,34 @@ User Query
 [ User Question ]
       ↓
 ┌─────────────────────┐
-│   retrieve          │ ← VectorStoreRetriever: FAISS similarity search
-│   (Node)            │
+│ RETRIEVE (FAISS)     │  Top-k similarity search
 └─────────────────────┘
       ↓
 ┌─────────────────────┐
-│ grade_documents     │ ← LLM judges: "relevant" or "not relevant"
-│ (Node)              │    for each retrieved doc
+│ GRADE_DOCUMENTS      │  Filter: keep only relevant docs
 └─────────────────────┘
       ↓
 ┌─────────────────────┐
-│ decide_to_generate  │ ← Conditional Edge (Router)
-│ (Decision Gate)     │
+│ ROUTER (decide_to_   │  If docs exist → GENERATE
+│ generate)            │  Else → WEB_SEARCH
 └─────────────────────┘
-      │                    │
-      │ "web_search"       │ "generate"
-      ↓                    ↓
-┌─────────────────┐   ┌─────────────────────┐
-│  web_search     │   │     generate        │ ← LLM synthesizes answer
-│  (Node)         │   │     (Node)          │    from relevant docs
-│  Tavily API     │   └─────────────────────┘
-└─────────────────┘               ↓
-      │                        [ END ]
-      │
-      └──→ generate (with web results)
+      │ Yes (docs)                 │ No (no docs)
+      │                            │
+      ↓                            ↓
+┌─────────────────────┐     ┌─────────────────────┐
+│ GENERATE             │     │ WEB_SEARCH (Tavily)  │
+│ (from FAISS docs)    │     │ (fetch web results)  │
+└─────────────────────┘     └─────────────────────┘
+      ↓                            │
+    [ END ]                        │
+                                   ↓
+                           ┌─────────────────────┐
+                           │ GENERATE             │
+                           │ (from web results)   │
+                           └─────────────────────┘
+                                   ↓
+                                 [ END ]
+
 ```
 
 **Key Learning**: Corrective RAG evaluates retrieval quality and falls back to web search when local knowledge is insufficient, combining best of both retrieval and search paradigms.
