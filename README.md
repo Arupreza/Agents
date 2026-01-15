@@ -385,6 +385,33 @@ User Query
 ### 8. Corrective RAG (CRAG) (`9.LG_CorrectiveRAG/`)
 
 ```
+  9.LG_CorrectiveRAG/
+  ├── Data/                         # FAISS index storage
+  │   └── faiss_index/
+  ├── src/                          # Source code
+  │   ├── __init__.py
+  │   ├── ingestion.py              # Database/Vectorstore setup
+  │   ├── consts.py                 # String constants
+  │   ├── state.py                  # GraphState definition
+  │   ├── chains/                   # LLM logic (Prompts/Parsers)
+  │   │   ├── __init__.py
+  │   │   ├── generation.py         # Answer generation chain
+  │   │   └── retrieval_grader.py   # Document relevance grading
+  │   ├── nodes/                    # Graph node functions
+  │   │   ├── __init__.py
+  │   │   ├── retrieve.py           # Vector store retrieval
+  │   │   ├── grade_documents.py    # Document grading node
+  │   │   ├── generate.py           # Generation node
+  │   │   └── web_search.py         # Fallback web search
+  │   └── graph.py                  # StateGraph construction
+  ├── tests/                        # Unit tests
+  │   └── test_chains.py
+  ├── .env                          # Environment variables
+  ├── main.py                       # Entry point
+  └── pyproject.toml                # uv configuration
+```
+
+```
 [ User Question ]
       ↓
 ┌─────────────────────┐
@@ -412,34 +439,6 @@ User Query
       │                        [ END ]
       │
       └──→ generate (with web results)
-```
-
-
-```
-  9.LG_CorrectiveRAG/
-  ├── Data/                         # FAISS index storage
-  │   └── faiss_index/
-  ├── src/                          # Source code
-  │   ├── __init__.py
-  │   ├── ingestion.py              # Database/Vectorstore setup
-  │   ├── consts.py                 # String constants
-  │   ├── state.py                  # GraphState definition
-  │   ├── chains/                   # LLM logic (Prompts/Parsers)
-  │   │   ├── __init__.py
-  │   │   ├── generation.py         # Answer generation chain
-  │   │   └── retrieval_grader.py   # Document relevance grading
-  │   ├── nodes/                    # Graph node functions
-  │   │   ├── __init__.py
-  │   │   ├── retrieve.py           # Vector store retrieval
-  │   │   ├── grade_documents.py    # Document grading node
-  │   │   ├── generate.py           # Generation node
-  │   │   └── web_search.py         # Fallback web search
-  │   └── graph.py                  # StateGraph construction
-  ├── tests/                        # Unit tests
-  │   └── test_chains.py
-  ├── .env                          # Environment variables
-  ├── main.py                       # Entry point
-  └── pyproject.toml                # uv configuration
 ```
 
 **Key Learning**: Corrective RAG evaluates retrieval quality and falls back to web search when local knowledge is insufficient, combining best of both retrieval and search paradigms.
@@ -486,6 +485,172 @@ class GraphState(TypedDict):
     generation: str            # Final answer
     web_search: str           # Flag: "Yes" to trigger search
 ```
+
+### Self-RAG (Self-Reflective Retrieval-Augmented Generation) (`10.LG_SelfRAG/`)
+
+```
+10.LG_SelfRAG/
+├── src/
+│   ├── __init__.py
+│   ├── chains/                   # LLM logic (Prompts/Parsers)
+│   │   ├── __init__.py
+│   │   ├── answer_grader.py      # Grades answer quality
+│   │   ├── generation.py         # Answer generation chain
+│   │   ├── hallucination_grader.py  # Checks grounding in docs
+│   │   └── retrieval_grader.py   # Document relevance grading
+│   ├── nodes/                    # Graph node functions
+│   │   ├── __init__.py
+│   │   ├── generate.py           # Generation node
+│   │   ├── grade_documents.py    # Document grading node
+│   │   ├── retrieve.py           # Vector store retrieval
+│   │   └── web_search.py         # Fallback web search
+│   ├── consts.py                 # String constants
+│   ├── graph.py                  # StateGraph construction
+│   ├── ingestion.py              # Database/Vectorstore setup
+│   └── state.py                  # GraphState definition
+├── tests/                        # Unit tests
+├── .env                          # Environment variables
+├── main.py                       # Entry point
+└── pyproject.toml                # uv configuration
+```
+
+---
+
+## 🏗️ Architecture Pattern
+
+```
+[ START ]
+    ↓
+┌─────────────────────┐
+│   RETRIEVE          │ ← VectorStoreRetriever: FAISS similarity search
+│   (Node)            │
+└─────────────────────┘
+    ↓
+┌─────────────────────┐
+│ GRADE_DOCUMENTS     │ ← LLM judges: "relevant" or "not relevant"
+│ (Node)              │    for each retrieved doc
+└─────────────────────┘
+    ↓
+┌─────────────────────┐
+│ decide_to_generate  │ ← Conditional Edge (Router)
+│ (Decision Gate)     │
+└─────────────────────┘
+    │                    │
+    │ "WEBSEARCH"        │ "GENERATE"
+    ↓                    ↓
+┌─────────────┐     ┌─────────────────────┐
+│ WEBSEARCH   │     │    GENERATE         │ ← LLM synthesizes answer
+│ (Node)      │     │    (Node)           │    from relevant docs
+└─────────────┘     └─────────────────────┘
+    │                    ↓
+    │              ┌─────────────────────────────┐
+    │              │ grade_generation_grounded   │ ← Hallucination check
+    │              │ _in_documents_and_question  │    + Answer quality
+    │              └─────────────────────────────┘
+    │                    │
+    │                    ├─── "not supported" ──→ (Loop back to GENERATE)
+    │                    ├─── "useful" ──────────→ [ END ]
+    │                    └─── "not useful" ─────→ WEBSEARCH
+    │                                               │
+    └────────────────────────────────────────────→ GENERATE
+```
+
+---
+
+## 🔑 Key Components
+
+### **Dual-Level Quality Control**
+
+**1. Document Relevance Grading** (`retrieval_grader.py`)
+- Evaluates if retrieved documents are relevant to the question
+- Binary classification: relevant/not relevant
+- Triggers web search if documents insufficient
+
+**2. Generation Quality Grading** (`hallucination_grader.py` + `answer_grader.py`)
+- **Hallucination Check**: Ensures answer is grounded in documents ("supported" vs "not supported")
+- **Usefulness Check**: Evaluates if answer addresses the question ("useful" vs "not useful")
+- Creates self-correction loop if quality insufficient
+
+---
+
+## 🎯 Workflow Logic
+
+```python
+# Stage 1: Document Grading
+if any_doc_relevant:
+    if all_docs_relevant:
+        return "GENERATE"      # Direct generation
+    else:
+        return "WEBSEARCH"     # Augment with web search
+else:
+    return "WEBSEARCH"         # Fallback to web search only
+
+# Stage 2: Generation Quality Grading
+if not grounded_in_docs:
+    return "not supported"     # Regenerate (loop to GENERATE)
+elif not useful:
+    return "not useful"        # Get more info (go to WEBSEARCH)
+else:
+    return "useful"            # Success (END)
+```
+
+---
+
+## 🔄 Self-Correction Mechanisms
+
+### **Triple Validation Pipeline**
+
+1. **Retrieval Validation**: Are documents relevant?
+   - ✅ Yes → Proceed to generation
+   - ❌ No → Fetch from web
+
+2. **Hallucination Validation**: Is answer grounded in sources?
+   - ✅ Yes → Check usefulness
+   - ❌ No → Regenerate with same context
+
+3. **Usefulness Validation**: Does answer address the question?
+   - ✅ Yes → Return to user
+   - ❌ No → Augment with web search
+
+---
+
+---
+
+## 🎓 Key Differences from Corrective RAG
+
+| Feature | Corrective RAG | Self-RAG |
+|---------|---------------|----------|
+| **Document Grading** | ✅ Yes | ✅ Yes |
+| **Hallucination Check** | ❌ No | ✅ Yes |
+| **Answer Quality Grading** | ❌ No | ✅ Yes |
+| **Self-Correction Loops** | ❌ No | ✅ Yes (regenerate) |
+| **Validation Stages** | 1 (retrieval) | 3 (retrieval + hallucination + usefulness) |
+| **Quality Guarantee** | Medium | High |
+
+---
+
+## 💡 Architecture Benefits
+
+- **Self-Correcting**: Multiple feedback loops ensure quality
+- **Hallucination Prevention**: Explicit grounding validation
+- **Adaptive Retrieval**: Dynamically switches between local + web sources
+- **Quality Assurance**: Triple-validation before returning answer
+- **Modular Design**: Each grader is independently testable
+- **Production-Ready**: Suitable for high-stakes applications requiring accuracy
+
+---
+
+## 📊 State Flow
+
+```python
+class GraphState(TypedDict):
+    question: str              # User query
+    documents: List[Document]  # Retrieved docs
+    generation: str            # Current answer
+    web_search: str           # Flag: "Yes" to trigger search
+```
+
+**Key Learning**: Self-RAG extends Corrective RAG with post-generation validation, creating a self-correcting system that ensures answers are both grounded in sources and useful to users.
 
 ---
 
