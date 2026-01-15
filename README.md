@@ -12,13 +12,6 @@ A comprehensive exploration of agentic AI systems using LangChain, LangGraph, an
 
 ---
 
-<<<<<<< HEAD
-=======
-## 📚 Learning Journey
-
-This repository documents my exploration of building intelligent agents with various architectures and capabilities.
-
->>>>>>> Corrective RAG Readme
 ---
 
 ## 🗂️ Repository Structure
