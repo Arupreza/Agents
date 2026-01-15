@@ -12,33 +12,6 @@ A comprehensive exploration of agentic AI systems using LangChain, LangGraph, an
 
 ---
 
-## 📚 Learning Journey
-
-This repository documents my exploration of building intelligent agents with various architectures and capabilities.
-
-### 🎯 Core Concepts Explored
-
-```mermaid
-graph TD
-    A[RAG Systems] --> B[Corrective RAG]
-    A[RAG Systems] --> C[Self-RAG]
-
-    B[Corrective RAG] --> D[Retrieve (FAISS)]
-    B[Corrective RAG] --> E[Grade Relevance]
-    B[Corrective RAG] --> F[Web Search Fallback]
-    B[Corrective RAG] --> G[Generate Answer]
-    B[Corrective RAG] --> H[Grounding / Hallucination Check]
-    B[Corrective RAG] --> I[Usefulness Check]
-    B[Corrective RAG] --> J[Route / Retry]
-
-    C[Self-RAG] --> K[Retrieve (FAISS)]
-    C[Self-RAG] --> L[Generate Answer]
-    C[Self-RAG] --> M[Self-Check (Supported? Missing Evidence?)]
-    C[Self-RAG] --> N[Refine Query]
-    C[Self-RAG] --> O[Retrieve Again]
-    C[Self-RAG] --> P[Iterative Loop]
-```
-
 ---
 
 ## 🗂️ Repository Structure
