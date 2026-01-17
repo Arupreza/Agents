@@ -1,0 +1,16 @@
+● ollama.service - Ollama Service
+     Loaded: loaded (/etc/systemd/system/ollama.service; disabled; vendor preset: enabled)
+    Drop-In: /etc/systemd/system/ollama.service.d
+             └─override.conf
+     Active: inactive (dead)
+
+Jan 15 23:13:10 lisa ollama[627069]: time=2026-01-15T23:13:10.109+09:00 level=INFO source=server.go:429 msg="starting runner" cmd="/usr/local/bin/ollama runner --ollama-engine --port 41839"
+Jan 15 23:13:10 lisa ollama[627069]: time=2026-01-15T23:13:10.293+09:00 level=INFO source=types.go:42 msg="inference compute" id=GPU-73031d76-5a73-4808-a976-339ba6dbb6ab filter_id="" library=CUDA compute=8.6 name=CUDA0 description="NVIDIA RTX A6000" libdirs=ollama,cuda_v12 driver=12.9 pci_id=0000:01:00.0 type=discrete total="48.0 GiB" available="47.2 GiB"
+Jan 15 23:14:09 lisa ollama[627069]: [GIN] 2026/01/15 - 23:14:09 | 404 |    1.537087ms |   192.168.10.16 | POST     "/api/chat"
+Jan 15 23:14:12 lisa ollama[627069]: [GIN] 2026/01/15 - 23:14:12 | 404 |     808.751µs |   192.168.10.16 | POST     "/api/chat"
+Jan 15 23:14:16 lisa ollama[627069]: [GIN] 2026/01/15 - 23:14:16 | 404 |     640.663µs |   192.168.10.16 | POST     "/api/chat"
+Jan 15 23:14:40 lisa ollama[627069]: [GIN] 2026/01/15 - 23:14:40 | 404 |      885.92µs |   192.168.10.16 | POST     "/api/chat"
+Jan 15 23:15:46 lisa ollama[627069]: [GIN] 2026/01/15 - 23:15:46 | 404 |     878.892µs |   192.168.10.16 | POST     "/api/chat"
+Jan 15 23:17:15 lisa systemd[1]: Stopping Ollama Service...
+Jan 15 23:17:15 lisa systemd[1]: ollama.service: Succeeded.
+Jan 15 23:17:15 lisa systemd[1]: Stopped Ollama Service.
