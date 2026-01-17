@@ -1,0 +1,243 @@
+PostgreSQL + pgvector + pgAdmin (Docker) — Quick Tutorial
+====================================================
+
+Goal
+----
+Stand up a local PostgreSQL server with the pgvector extension using Docker, plus a pgAdmin web UI, then create:
+- User: arupreza
+- Databases: "ConetxDB" and agent_chat_pgvector
+- Grants: arupreza owns/has full privileges on both DBs
+
+This tutorial is designed for local development and later revision.
+
+Prerequisites
+-------------
+1) Docker installed and running:
+   - Confirm:
+     docker --version
+     docker ps
+
+2) Ports available on your machine:
+   - PostgreSQL: 5433 (host) -> 5432 (container)
+   - pgAdmin:    8080 (host) -> 80   (container)
+
+3) (Optional) Remove old containers with the same names:
+   docker rm -f pgvector pgadmin_server
+
+Images to Pull (Recommended)
+----------------------------
+Pull these once so later runs are fast:
+
+  docker pull postgres:16
+  docker pull pgvector/pgvector:pg16
+  docker pull dpage/pgadmin4
+
+
+Step 1 — Run the pgvector PostgreSQL Server
+-------------------------------------------
+Start the pgvector-enabled Postgres container on port 5433:
+
+  docker run -d \
+    --name pgvector \
+    -e POSTGRES_PASSWORD=0103 \
+    -p 5433:5432 \
+    pgvector/pgvector:pg16
+
+Verify it is running:
+
+  docker ps
+  docker logs pgvector
+
+
+Step 2 — (Optional) Create a Dedicated Docker Network
+-----------------------------------------------------
+This is useful when you want pgAdmin to reach the Postgres container by container name.
+
+  docker network create pgnet
+
+Attach the running containers to the network:
+
+  docker network connect pgnet pgvector
+
+(If you prefer, you can also start containers directly on the network, see “Alternative: Start on network” below.)
+
+
+Step 3 — Run pgAdmin Server
+---------------------------
+Start pgAdmin on port 8080:
+
+  docker run -d \
+    --name pgadmin_server \
+    -p 8080:80 \
+    -e PGADMIN_DEFAULT_EMAIL=arupreza@sch.ac.kr \
+    -e PGADMIN_DEFAULT_PASSWORD=0103 \
+    dpage/pgadmin4
+
+Attach pgAdmin to the same network (if using pgnet):
+
+  docker network connect pgnet pgadmin_server
+
+Open pgAdmin in a browser:
+- http://localhost:8080
+
+Login:
+- Email:    arupreza@sch.ac.kr
+- Password: xxx
+
+
+Step 4 — Create User and Databases Inside pgvector
+--------------------------------------------------
+Run these commands from your terminal (host machine). They execute psql inside the container.
+
+1) Create user 'arupreza'
+   docker exec -it pgvector psql -U postgres -c "CREATE USER arupreza WITH PASSWORD '0103';"
+
+2) Grant Superuser bypass (Optional; dev convenience)
+   NOTE: This is NOT recommended for production.
+   docker exec -it pgvector psql -U postgres -c "ALTER USER arupreza WITH SUPERUSER;"
+
+3) Create the Context Database (note the name is spelled "ConetxDB" here)
+   docker exec -it pgvector psql -U postgres -c "CREATE DATABASE \"ConetxDB\";"
+
+4) Create the Memory Database
+   docker exec -it pgvector psql -U postgres -c "CREATE DATABASE agent_chat_pgvector;"
+
+5) Grant privileges on both DBs to 'arupreza'
+   docker exec -it pgvector psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE \"ConetxDB\" TO arupreza;"
+   docker exec -it pgvector psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE agent_chat_pgvector TO arupreza;"
+
+
+Step 5 — Enable pgvector Extension (Recommended)
+------------------------------------------------
+Even though you are using the pgvector image, you still need to enable the extension per database.
+
+Enable in "ConetxDB":
+  docker exec -it pgvector psql -U postgres -d "ConetxDB" -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+Enable in agent_chat_pgvector:
+  docker exec -it pgvector psql -U postgres -d agent_chat_pgvector -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+
+Step 6 — Connect pgAdmin to the pgvector Postgres Container
+-----------------------------------------------------------
+In pgAdmin UI:
+1) Right-click “Servers” -> Register -> Server…
+2) General tab:
+   - Name: pgvector-local (any name)
+3) Connection tab:
+   - Host name/address:
+     - If using the Docker network: pgvector
+     - If not using a Docker network: host.docker.internal (Windows/Mac) OR your host IP
+   - Port: 5432 (inside container)
+   - Maintenance database: postgres
+   - Username: arupreza
+   - Password: 0103
+   - Save password: enabled
+
+Important note about ports:
+- pgAdmin runs in Docker. If it connects over the Docker network, it should use Postgres container port 5432.
+- Your host uses 5433 to connect from outside Docker.
+
+Test from your host (optional):
+  psql -h localhost -p 5433 -U arupreza -d ConetxDB
+
+
+Step 7 — Run Your Python App (uv)
+---------------------------------
+From your project folder:
+
+  # Prefer using the active environment
+  uv run --active python ./3.RAGAgent.py
+
+If you see env mismatch warnings:
+- You can unset the VIRTUAL_ENV variable:
+  unset VIRTUAL_ENV
+
+(Or use uv with the correct environment for your project.)
+
+
+Alternative: Start Containers Directly on the Network
+-----------------------------------------------------
+If you want the containers to be created already attached to pgnet:
+
+  docker network create pgnet
+
+  docker run -d \
+    --name pgvector \
+    --network pgnet \
+    -e POSTGRES_PASSWORD=0103 \
+    -p 5433:5432 \
+    pgvector/pgvector:pg16
+
+  docker run -d \
+    --name pgadmin_server \
+    --network pgnet \
+    -p 8080:80 \
+    -e PGADMIN_DEFAULT_EMAIL=arupreza@sch.ac.kr \
+    -e PGADMIN_DEFAULT_PASSWORD=0103 \
+    dpage/pgadmin4
+
+
+Common Troubleshooting
+----------------------
+1) “port is already allocated” or cannot bind
+- Something is already using 5433 or 8080 on your host.
+- Fix by stopping the conflicting process/container, or change host ports:
+  - e.g., -p 5434:5432
+
+2) pgAdmin cannot connect to pgvector
+- If connecting via Docker network, host must be "pgvector" and port must be 5432.
+- Ensure both containers are in the same Docker network:
+  docker network inspect pgnet
+
+3) Forgot password / wrong credentials
+- Recreate containers (dev workflow):
+  docker rm -f pgadmin_server pgvector
+  (then re-run steps)
+
+4) “CREATE EXTENSION vector;” fails
+- You may not be on the correct DB (must run per database).
+- If you did not grant superuser, you can still create extensions if permitted,
+  but SUPERUSER is the simplest for local dev.
+
+Security Notes (Read This)
+--------------------------
+- Do NOT use SUPERUSER for real deployments.
+- Do NOT use weak passwords in production.
+- For production, add volumes, backups, least-privilege roles, and restricted networking.
+
+Optional: Add Data Persistence
+------------------------------
+Without volumes, all DB data is lost if you remove the container.
+
+Example with a named volume:
+
+  docker volume create pgdata
+
+  docker rm -f pgvector
+
+  docker run -d \
+    --name pgvector \
+    -e POSTGRES_PASSWORD=0103 \
+    -p 5433:5432 \
+    -v pgdata:/var/lib/postgresql/data \
+    pgvector/pgvector:pg16
+
+
+Quick Stop / Start Commands
+---------------------------
+Stop:
+  docker stop pgvector pgadmin_server
+
+Start:
+  docker start pgvector pgadmin_server
+
+View logs:
+  docker logs -f pgvector
+  docker logs -f pgadmin_server
+
+Remove:
+  docker rm -f pgvector pgadmin_server
+
+
+End.

@@ -215,5 +215,6 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 .python-version
-Data/RezaPapers.env
-.env copy
+Data/RezaPapers
+.env
+11.LG_AdaptiveRAG/
