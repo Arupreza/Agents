@@ -241,3 +241,11 @@ Remove:
 
 
 End.
+
+####################################################
+Check The collection name
+####################################################
+SELECT name, uuid
+FROM langchain_pg_collection
+ORDER BY name;
+####################################################
