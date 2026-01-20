@@ -51,15 +51,9 @@ from dotenv import load_dotenv
 
 # Internal Imports (From your packages)
 from src.State import AgentState
-from src.artifact.Settings import Parameter # Assuming you have a Settings class here
+from src.artifact.Settings import Parameter, require_env # Assuming you have a Settings class here
 from src.Graph import BuildGraph  # This is the entry point for your LangGraph
 from langchain_core.messages import HumanMessage
-
-def require_env(keys: list[str]):
-    """Validate environment variables."""
-    for key in keys:
-        if not os.getenv(key):
-            raise ValueError(f"MISSING CRITICAL ENV VAR: {key}")
 
 async def main() -> None:
     # 1. Load and Validate
