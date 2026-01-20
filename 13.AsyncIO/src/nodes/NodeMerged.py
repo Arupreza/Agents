@@ -11,6 +11,19 @@ async def MergeNode(state: AgentState) -> Dict[str, Any]:
     vector_map: Dict[str, Dict[str, Any]] = {r["topic"]: r for r in state.get("vector_results", [])}
     web_map: Dict[str, Dict[str, Any]] = {r["topic"]: r for r in state.get("web_results", [])}
 
+    """vector_map = {}
+
+    # 2. Get the list of results from the state (default to empty list if missing)
+    vector_results = state.get("vector_results", [])
+
+    # 3. Iterate through each result dictionary in the list
+    for r in vector_results:
+        # 4. Use the value of the "topic" key as the new Dictionary Key
+        key = r["topic"]
+        
+        # 5. Store the entire result dictionary as the value for that key
+        vector_map[key] = r"""
+
     merged: List[Dict[str, Any]] = []
     for t in state["topics"]:
         v = vector_map.get(t, {})

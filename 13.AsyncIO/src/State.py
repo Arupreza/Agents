@@ -1,9 +1,5 @@
 from typing import Any, Dict, List, TypedDict, Annotated
-# If Settings.py is now in the same folder as State.py, use this:
 from src.artifact.Settings import Parameter
-# OR if it is still in the artifact folder:
-# from artifact.Settings import Parameter
-
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 

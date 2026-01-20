@@ -63,7 +63,7 @@ async def main() -> None:
     # 2. Configuration
     topics = [
         "CAN bus security vulnerabilities",
-        "Automotive intrusion detection systems",
+        "V2X Security vulnerabilities",
         "Give me mango tree plantation plan",
     ]
 

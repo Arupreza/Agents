@@ -1,7 +1,7 @@
-from src.artifact.Settings import GetVectorStore
 from typing import Any, Dict
 from langchain_core.messages import AIMessage
 from src.State import AgentState
+from src.artifact.Settings import GetVectorStore
 # =============================================================================
 # LANGGRAPH NODES
 # =============================================================================
